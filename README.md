@@ -16,7 +16,8 @@ dotnet run --project src/Cli -- --json
 
 ## Середовище
 
-.NET SDK 8.0, Windows
+- .NET SDK 8.0, 
+- RID: win-x64
 
 ## Публікація (додаткове завдання)
 
