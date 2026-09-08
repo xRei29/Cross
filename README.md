@@ -21,7 +21,7 @@ dotnet run --project src/Cli -- --json
 
 ## Публікація (додаткове завдання)
 
- win-x64 (self-contained): ~70.5 MB
+ win-x64 (self-contained): ~70.5 MB,
  linux-x64 (self-contained): ~70.6 MB
 
 Розміри майже однакові, оскільки self-contained публікація включає весь runtime .NET незалежно від цільової ОС.
