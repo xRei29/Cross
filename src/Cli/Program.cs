@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 
 bool jsonMode = args.Contains("--json");
 
@@ -21,7 +23,15 @@ if (jsonMode)
         Domain = "Замовлення (клієнти, товари, замовлення, рядки замовлення)"
     };
 
-    string json = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true });
+    //  налаштування із дозволом на кирилицю
+    var options = new JsonSerializerOptions
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic)
+        
+    };
+
+    string json = JsonSerializer.Serialize(info, options);
     Console.WriteLine(json);
 }
 else
