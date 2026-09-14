@@ -1,51 +1,45 @@
-﻿using System.Runtime.InteropServices;
+﻿using Core;
 using System.Text.Json;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
 
 bool jsonMode = args.Contains("--json");
+EnvironmentReport report = EnvironmentInfo.Collect();
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 if (jsonMode)
 {
-    var info = new
+    var payload = new
     {
-        Student = "Конопка Роман", 
+        Student = "Конопка Роман",
         Group = "ФЕІ-36",
-        OsDescription = RuntimeInformation.OSDescription,
-        OsEnvironment = Environment.OSVersion.ToString(),
-        ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
-        DotnetVersion = Environment.Version.ToString(),
-        Runtime = RuntimeInformation.FrameworkDescription,
-        AppDirectory = AppContext.BaseDirectory,
-        CurrentDirectory = Environment.CurrentDirectory,
+        report.OsDescription,
+        report.FrameworkDescription,
+        report.ProcessArchitecture,
+        report.DetectedRid,
+        report.ReportedRid,
+        report.BaseDirectory,
         Domain = "Замовлення (клієнти, товари, замовлення, рядки замовлення)"
     };
 
-    //  налаштування із дозволом на кирилицю
-    var options = new JsonSerializerOptions
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic)
-        
-    };
-
-    string json = JsonSerializer.Serialize(info, options);
-    Console.WriteLine(json);
+   Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions 
+{ 
+    WriteIndented = true,
+    Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic)
+}));
 }
 else
 {
-    Console.WriteLine("CrossApp – практикум з крос-платформного програмування");
+    Console.WriteLine("CrossApp – інформація про середовище");
     Console.WriteLine("Студент: Конопка Роман, група ФЕІ-36");
     Console.WriteLine(new string('-', 52));
-    Console.WriteLine($"ОС (OSDescription) : {RuntimeInformation.OSDescription}");
-    Console.WriteLine($"ОС (Environment) : {Environment.OSVersion}");
-    Console.WriteLine($"Архітектура процесу : {RuntimeInformation.ProcessArchitecture}");
-    Console.WriteLine($"Версія .NET (CLR) : {Environment.Version}");
-    Console.WriteLine($"Runtime : {RuntimeInformation.FrameworkDescription}");
-    Console.WriteLine($"Каталог застосунку : {AppContext.BaseDirectory}");
-    Console.WriteLine($"Поточний каталог : {Environment.CurrentDirectory}");
+    Console.WriteLine($"ОС              : {report.OsDescription}");
+    Console.WriteLine($"Runtime         : {report.FrameworkDescription}");
+    Console.WriteLine($"Архітектура     : {report.ProcessArchitecture}");
+    Console.WriteLine($"RID (визначено) : {report.DetectedRid}");
+    Console.WriteLine($"RID (від .NET)  : {report.ReportedRid}");
+    Console.WriteLine($"Каталог         : {report.BaseDirectory}");
     Console.WriteLine(new string('-', 52));
     Console.WriteLine("Предметна область: Замовлення (клієнти, товари, замовлення, рядки замовлення)");
 }
