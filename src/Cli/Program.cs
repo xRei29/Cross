@@ -42,4 +42,5 @@ else
     Console.WriteLine($"Каталог         : {report.BaseDirectory}");
     Console.WriteLine(new string('-', 52));
     Console.WriteLine("Предметна область: Замовлення (клієнти, товари, замовлення, рядки замовлення)");
+    Console.WriteLine($"Нотатка збірки  : {report.BuildNote}");
 }
