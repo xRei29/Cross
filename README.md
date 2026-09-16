@@ -53,9 +53,13 @@ Core.csproj зібрано під два TFM (TargetFrameworks): net8.0 та net
 
 Self-contained включає весь .NET runtime, тому не потребує встановленого .NET на цільовій машині — ціна: розмір у ~400 разів більший за framework-dependent.
 
-Запуск win-x64 напряму (без dotnet run):
+Запуск self-contained напряму (без dotnet run, працює на будь-якому Windows x64, навіть без встановленого .NET):
 
     .\publish\win-x64-sc\Cli.exe
+
+Запуск framework-dependent (потребує встановленого .NET 8 на машині, де запускається):
+
+    .\publish\win-x64-fd\Cli.exe
 
 ## Перевірка linux-x64 через Docker
 
@@ -85,7 +89,7 @@ Self-contained включає весь .NET runtime, тому не потреб�
 
 ### Умовна компіляція (multi-targeting)
 
-У Core/EnvironmentInfo.cs додано директиви #if NET9_0_OR_GREATER, які визначають поле BuildNote залежно від TFM (див. розділ "Multi-targeting" вище).
+У Core/EnvironmentInfo.cs додано директиви #if NET9_0_OR_GREAT+++ER, які визначають поле BuildNote залежно від TFM (див. розділ "Multi-targeting" вище).
 
 ### Перевірка публікації іншої ОС у Docker
 
