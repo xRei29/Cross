@@ -1,46 +1,26 @@
-﻿using Core;
-using System.Text.Json;
-using System.Text.Encodings.Web;
-using System.Text.Unicode;
+﻿using Core.Dto;
+using Core.Import;
+using System.Globalization;
 
-bool jsonMode = args.Contains("--json");
-EnvironmentReport report = EnvironmentInfo.Collect();
+string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample.csv");
 
-Console.OutputEncoding = System.Text.Encoding.UTF8;
-
-if (jsonMode)
+if (!File.Exists(path))
 {
-    var payload = new
-    {
-        Student = "Конопка Роман",
-        Group = "ФЕІ-36",
-        report.OsDescription,
-        report.FrameworkDescription,
-        report.ProcessArchitecture,
-        report.DetectedRid,
-        report.ReportedRid,
-        report.BaseDirectory,
-        Domain = "Замовлення (клієнти, товари, замовлення, рядки замовлення)"
-    };
+    Console.WriteLine($"Файл не знайдено: {Path.GetFullPath(path)}");
+    return 1;
+}
 
-   Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions 
-{ 
-    WriteIndented = true,
-    Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic)
-}));
-}
-else
+ImportResult<ProductDto> result = ProductCsvImporter.Load(path);
+
+Console.WriteLine($"Завантажено записів: {result.Items.Count}");
+foreach (ProductDto p in result.Items.Take(5))
+    Console.WriteLine($"  {p.Id,-8} {p.Name,-30} {p.Price.ToString("F2", CultureInfo.InvariantCulture),10}");
+
+if (result.Errors.Count > 0)
 {
-    Console.WriteLine("CrossApp – інформація про середовище");
-    Console.WriteLine("Студент: Конопка Роман, група ФЕІ-36");
-    Console.WriteLine(new string('-', 52));
-    Console.WriteLine($"ОС              : {report.OsDescription}");
-    Console.WriteLine($"Runtime         : {report.FrameworkDescription}");
-    Console.WriteLine($"Архітектура     : {report.ProcessArchitecture}");
-    Console.WriteLine($"RID (визначено) : {report.DetectedRid}");
-    Console.WriteLine($"RID (від .NET)  : {report.ReportedRid}");
-    Console.WriteLine($"Каталог         : {report.BaseDirectory}");
-    Console.WriteLine(new string('-', 52));
-    Console.WriteLine("Предметна область: Замовлення (клієнти, товари, замовлення, рядки замовлення)");
-    Console.WriteLine($"Нотатка збірки  : {report.BuildNote}");
+    Console.WriteLine($"Пропущено рядків: {result.Errors.Count}");
+    foreach (string e in result.Errors)
+        Console.WriteLine($"  ! {e}");
 }
+
+return 0;
