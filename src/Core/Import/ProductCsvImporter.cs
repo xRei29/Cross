@@ -54,19 +54,6 @@ public static class ProductCsvImporter
         };
     }
 
-    private static object ParseMixedLine(string line)
-{
-    string[] parts = line.Split(';', StringSplitOptions.TrimEntries);
-    return parts switch
-    {
-        ["P", var id, var name, var price] when decimal.TryParse(price, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal p)
-            => new ProductDto(id, name, p),
-        ["C", var id, var name, var email]
-            => new CustomerDto(id, name, string.IsNullOrWhiteSpace(email) ? null : email),
-        _ => throw new FormatException($"Невідомий тип рядка: {line}")
-    };
-}
-
     private abstract record ParseOutcome;
     private sealed record ParseOk(ProductDto Value) : ParseOutcome;
     private sealed record ParseFailed(string Reason) : ParseOutcome;

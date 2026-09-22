@@ -89,7 +89,7 @@ Self-contained включає весь .NET runtime, тому не потреб�
 
 ### Умовна компіляція (multi-targeting)
 
-У Core/EnvironmentInfo.cs додано директиви #if NET9_0_OR_GREAT+++ER, які визначають поле BuildNote залежно від TFM (див. розділ "Multi-targeting" вище).
+У Core/EnvironmentInfo.cs додано директиви #if #if NET9_0_OR_GREATER, які визначають поле BuildNote залежно від TFM (див. розділ "Multi-targeting" вище).
 
 ### Перевірка публікації іншої ОС у Docker
 
