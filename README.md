@@ -142,3 +142,49 @@ Self-contained включає весь .NET runtime, тому не потреб�
 - JSON-імпортер (ProductJsonImporter) — вибір за розширенням файлу через switch
 - MixedImporter — розпізнавання різнорідних рядків за префіксом (P/C), повертає ImportResult<object>
 - Статистика імпорту (всього/прийнято/пропущено/% помилок) одним рядком
+
+
+## Лабораторна 4: Доменна модель (Order/OrderLine)
+
+### Сутності (Core/Domain)
+- Order(Id, CustomerId, Status, Lines) — агрегат, приватний конструктор, фабричний метод Create
+- OrderLine(ProductId, Name, Price, Quantity) — рядок замовлення
+- OrderStatus (enum) — Draft, Confirmed, Cancelled
+- CatalogProduct — доменна обгортка над ProductDto (тиждень 3)
+
+### Інваріанти
+
+| Правило | Виняток | Метод |
+|---|---|---|
+| Id / CustomerId не порожні | ArgumentException | Order.Create |
+| Ціна не від'ємна | ArgumentOutOfRangeException | Order.AddLine |
+| Кількість > 0 | ArgumentOutOfRangeException | Order.AddLine |
+| Рядки лише в статусі Draft | InvalidOperationException | Order.AddLine |
+| Не підтвердити порожнє замовлення | InvalidOperationException | Order.Confirm |
+| Дозволені лише певні переходи статусу | InvalidOperationException | Order.ChangeStatus |
+
+### Запуск
+
+    dotnet run --project src/Cli
+
+### Вивід
+
+    === Сценарій 1: успіх ===
+    Замовлення ORD-001 (клієнт CUST-001) — 2 поз., сума 25798.99, статус: Draft
+    Замовлення ORD-001 (клієнт CUST-001) — 2 поз., сума 25798.99, статус: Confirmed
+
+    === Сценарій 2: порушення інваріантів ===
+      додавання рядка до підтвердженого замовлення: InvalidOperationException — ...
+      від'ємна ціна: ArgumentOutOfRangeException — ...
+      нульова кількість: ArgumentOutOfRangeException — ...
+      підтвердження порожнього замовлення: InvalidOperationException — ...
+      повторне підтвердження: InvalidOperationException — ...
+      скасування вже скасованого замовлення: InvalidOperationException — ...
+
+### DTO vs сутність
+DTO (ProductDto, OrderDto) — незмінний формат даних, без перевірок. Сутність (Order, CatalogProduct) — власник бізнес-правил, гарантує коректний стан. Зв'язок — ToDto/FromDto.
+
+### Додаткові завдання
+- CatalogProductBuilder — ImportResult<ProductDto> → ImportResult<CatalogProduct>, об'єднує помилки парсингу й доменних перевірок
+- OrderPolicy — інваріант на кілька замовлень клієнта, винесений окремо від Order (потребує доступу до інших замовлень — це прийде зі сховищем на тижні 5)
+- OrderStatus як enum з перевіркою дозволених переходів через switch expression у ChangeStatus

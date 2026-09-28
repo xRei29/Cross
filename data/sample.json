@@ -1,4 +1,5 @@
 [
   { "Id": "PR-001", "Name": "Ноутбук Lenovo IdeaPad", "Price": 24999.99 },
-  { "Id": "PR-002", "Name": "Миша бездротова Logitech", "Price": 399.50 }
+  { "Id": "PR-002", "Name": "Миша бездротова Logitech", "Price": 399.50 },
+  { "Id": "PR-003", "Name": "Монітор", "Price": 14000.00 }
 ]
