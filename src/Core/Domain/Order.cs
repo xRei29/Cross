@@ -4,6 +4,7 @@ namespace Core.Domain;
 
 public sealed class Order
 {
+    // Приватне поле для зберігання списку рядків
     private readonly List<OrderLine> _lines = [];
 
     public string Id { get; }
@@ -17,6 +18,7 @@ public sealed class Order
         Id = id;
         CustomerId = customerId;
     }
+    
 
     // Єдиний спосіб створити замовлення: усі перевірки тут.
     public static Order Create(string id, string customerId)
@@ -28,7 +30,6 @@ public sealed class Order
 
         return new Order(id.Trim(), customerId.Trim());
     }
-
     public void AddLine(string productId, string name, decimal price, int quantity)
     {
         if (Status != OrderStatus.Draft)
@@ -58,6 +59,8 @@ public sealed class Order
     {
         ChangeStatus(OrderStatus.Cancelled);
     }
+
+
 
     // Додаткове завдання №3: явні дозволені переходи станів через switch expression (tuple pattern).
     private void ChangeStatus(OrderStatus newStatus)

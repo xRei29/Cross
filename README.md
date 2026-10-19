@@ -188,3 +188,34 @@ DTO (ProductDto, OrderDto) — незмінний формат даних, бе�
 - CatalogProductBuilder — ImportResult<ProductDto> → ImportResult<CatalogProduct>, об'єднує помилки парсингу й доменних перевірок
 - OrderPolicy — інваріант на кілька замовлень клієнта, винесений окремо від Order (потребує доступу до інших замовлень — це прийде зі сховищем на тижні 5)
 - OrderStatus як enum з перевіркою дозволених переходів через switch expression у ChangeStatus
+
+
+## Лабораторна робота 5 — Сервісний шар: інтерфейси, два сховища, ручний DI
+
+### Що додано
+- `Core/Abstractions/IOrderStore.cs` — контракт сховища (List, GetById, Add, Update, Remove, Find)
+- `Core/Storage/InMemoryOrderStore.cs` — реалізація на Dictionary (дані живуть, поки працює процес)
+- `Core/Storage/FileOrderStore.cs` — реалізація на JSON-файлі (дані зберігаються між запусками через OrderDto)
+- `Core/Storage/CachingOrderStore.cs` — декоратор, що кешує список замовлень поверх будь-якого іншого IOrderStore
+- `Core/Storage/StoreFactory.cs` — вибір конкретної реалізації за аргументами командного рядка
+- `Core/Services/OrderService.cs` — сервіс, що працює лише через IOrderStore (CreateOrder, AddLine, Confirm, All, Find)
+- `Core/SampleData.cs` — 15 демозаписів для InMemory-режиму
+- Composition root переміщено в `Cli/Program.cs`: тільки там створюються конкретні класи сховищ
+
+### Запуск
+
+| Команда | Сховище | Поведінка |
+|---|---|---|
+| `dotnet run --project src/Cli` | InMemoryOrderStore | Дані скидаються при кожному запуску |
+| `dotnet run --project src/Cli -- --file` | FileOrderStore | Дані накопичуються в `data/orders.json` |
+| `dotnet run --project src/Cli -- --cache` | CachingOrderStore (поверх InMemory) | Кешує список замовлень |
+| `dotnet run --project src/Cli -- --file --cache` | CachingOrderStore (поверх File) | Файл + кеш одночасно |
+
+### Ключова ідея
+`OrderService` приймає в конструкторі тип `IOrderStore`, а не конкретний клас — тому його можна використовувати з будь-якою реалізацією сховища без змін у самому сервісі. Вибір конкретної реалізації відбувається один раз, у `StoreFactory`, яку викликає `Program.cs`.
+
+### Перевірено
+- Два запуски з `--file` поспіль дають накопичення записів у `data/orders.json` (не перезапис)
+- Пошук `"FileOrderStore"` у `src/Core` знаходиться лише у файлі самої реалізації
+- Пошук `"Console."` у `src/Core` — 0 результатів
+- Сценарій відмови: дублікат id та AddLine до неіснуючого замовлення коректно кидають `InvalidOperationException` з читабельним повідомленням

@@ -1,42 +1,49 @@
-﻿using Core.Domain;
-using Core.Dto;
-using Core.Import;
+﻿using Core;
+using Core.Abstractions;
+using Core.Domain;
+using Core.Services;
+using Core.Storage;
 
-Console.WriteLine("=== Сценарій 1: успіх ===");
-Order order = Order.Create("ORD-001", "CUST-001");
-order.AddLine("PR-001", "Ноутбук Lenovo IdeaPad", 24999.99m, 1);
-order.AddLine("PR-002", "Миша бездротова Logitech", 399.50m, 2);
-Console.WriteLine(order);
-order.Confirm();
-Console.WriteLine(order);
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
+
+IOrderStore store = StoreFactory.Create(args, dataPath);
+
+var service = new OrderService(store);
+
+Console.WriteLine($"Сховище: {store.GetType().Name}");
+
+Order created = service.CreateOrder("CUST-999");
+service.AddLine(created.Id, "PR-999", "Тестовий товар", 199.99m, 2);
+
 Console.WriteLine();
+Console.WriteLine("=== Усі замовлення ===");
+foreach (Order o in service.All())
+    Console.WriteLine($"  {o}");
 
-Console.WriteLine("=== Сценарій 2: порушення інваріантів ===");
-TryDo("додавання рядка до підтвердженого замовлення", () => order.AddLine("PR-003", "Клавіатура", 100m, 1));
-TryDo("від'ємна ціна", () => Order.Create("ORD-002", "CUST-002").AddLine("PR-004", "Тест", -10m, 1));
-TryDo("нульова кількість", () => Order.Create("ORD-003", "CUST-003").AddLine("PR-005", "Тест", 50m, 0));
-TryDo("підтвердження порожнього замовлення", () => Order.Create("ORD-004", "CUST-004").Confirm());
-TryDo("повторне підтвердження", () => order.Confirm());
-TryDo("скасування вже скасованого замовлення", () => {
-    var temp = Order.Create("ORD-999", "CUST-999");
-    temp.Cancel();
-    temp.Cancel(); // друга спроба — має впасти
+Console.WriteLine();
+Console.WriteLine("=== Пошук: підтверджені замовлення ===");
+var confirmed = store.Find(o => o.Status == OrderStatus.Confirmed);
+Console.WriteLine($"Знайдено: {confirmed.Count}");
+foreach (Order o in confirmed)
+    Console.WriteLine($"  {o}");
+
+Console.WriteLine();
+Console.WriteLine("=== Сценарій відмови ===");
+TryDo("повторне створення з тим самим id (дублікат)", () =>
+{
+    var dup = Order.Create(created.Id, "CUST-1");
+    store.Add(dup);
 });
-Console.WriteLine();
-
-Console.WriteLine("=== Додатково: імпорт + доменні перевірки (зв'язок з тижнем 3) ===");
-ImportResult<ProductDto> importResult = ProductCsvImporter.Load(Path.Combine("data", "sample.csv"));
-ImportResult<CatalogProduct> catalogResult = CatalogProductBuilder.Build(importResult);
-Console.WriteLine($"Каталог: {catalogResult.Items.Count} валідних товарів, {catalogResult.Errors.Count} помилок");
-foreach (string e in catalogResult.Errors)
-    Console.WriteLine($"  ! {e}");
+TryDo("AddLine до неіснуючого замовлення", () => service.AddLine("ORD-NOPE", "PR-1", "X", 1m, 1));
 
 static void TryDo(string title, Action action)
 {
     try
     {
         action();
-        Console.WriteLine($"  {title}: виняток НЕ спрацював — інваріант відсутній!");
+        Console.WriteLine($"  {title}: виняток НЕ спрацював!");
     }
     catch (Exception ex)
     {
