@@ -1,4 +1,7 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Unicode;
 using Core.Abstractions;
 using Core.Domain;
 using Core.Dto;
@@ -7,7 +10,13 @@ namespace Core.Storage;
 
 public sealed class FileOrderStore(string path) : IOrderStore
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     private readonly Dictionary<string, Order> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.GetFullPath(path);
     private bool _loaded;
@@ -18,7 +27,7 @@ public sealed class FileOrderStore(string path) : IOrderStore
 
         if (File.Exists(_path))
         {
-            var dtos = JsonSerializer.Deserialize<List<OrderDto>>(File.ReadAllText(_path)) ?? [];
+            var dtos = JsonSerializer.Deserialize<List<OrderDto>>(File.ReadAllText(_path), Options) ?? [];
             foreach (OrderDto dto in dtos)
             {
                 Order order = Order.FromDto(dto);

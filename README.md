@@ -197,7 +197,7 @@ DTO (ProductDto, OrderDto) — незмінний формат даних, бе�
 - `Core/Storage/InMemoryOrderStore.cs` — реалізація на Dictionary (дані живуть, поки працює процес)
 - `Core/Storage/FileOrderStore.cs` — реалізація на JSON-файлі (дані зберігаються між запусками через OrderDto)
 - `Core/Storage/CachingOrderStore.cs` — декоратор, що кешує список замовлень поверх будь-якого іншого IOrderStore
-- `Core/Storage/StoreFactory.cs` — вибір конкретної реалізації за аргументами командного рядка
+- `Cli/StoreFactory.cs` — вибір конкретної реалізації за аргументами командного рядка
 - `Core/Services/OrderService.cs` — сервіс, що працює лише через IOrderStore (CreateOrder, AddLine, Confirm, All, Find)
 - `Core/SampleData.cs` — 15 демозаписів для InMemory-режиму
 - Composition root переміщено в `Cli/Program.cs`: тільки там створюються конкретні класи сховищ

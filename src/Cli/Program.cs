@@ -6,9 +6,17 @@ using Core.Storage;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+bool useFile = args.Contains("--file");
 string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
 
-IOrderStore store = StoreFactory.Create(args, dataPath);
+IOrderStore store = useFile
+    ? new FileOrderStore(dataPath)
+    : new InMemoryOrderStore(SampleData.Orders());
+
+if (args.Contains("--cache"))
+    store = new CachingOrderStore(store);
+
+// Альтернатива (додаткове завдання 3): IOrderStore store = StoreFactory.Create(args, dataPath);
 
 var service = new OrderService(store);
 
@@ -17,14 +25,22 @@ Console.WriteLine($"Сховище: {store.GetType().Name}");
 Order created = service.CreateOrder("CUST-999");
 service.AddLine(created.Id, "PR-999", "Тестовий товар", 199.99m, 2);
 
+Order paid = service.CreateOrder("CUST-998");
+service.AddLine(paid.Id, "PR-998", "Підтверджений товар", 50m, 3);
+service.Confirm(paid.Id);
+
 Console.WriteLine();
 Console.WriteLine("=== Усі замовлення ===");
 foreach (Order o in service.All())
     Console.WriteLine($"  {o}");
 
 Console.WriteLine();
+Console.WriteLine("=== Пошук за id ===");
+Console.WriteLine($"  {service.Find(created.Id)}");
+
+Console.WriteLine();
 Console.WriteLine("=== Пошук: підтверджені замовлення ===");
-var confirmed = store.Find(o => o.Status == OrderStatus.Confirmed);
+var confirmed = service.Search(o => o.Status == OrderStatus.Confirmed);
 Console.WriteLine($"Знайдено: {confirmed.Count}");
 foreach (Order o in confirmed)
     Console.WriteLine($"  {o}");
