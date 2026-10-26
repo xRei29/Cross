@@ -219,3 +219,30 @@ DTO (ProductDto, OrderDto) — незмінний формат даних, бе�
 - Пошук `"FileOrderStore"` у `src/Core` знаходиться лише у файлі самої реалізації
 - Пошук `"Console."` у `src/Core` — 0 результатів
 - Сценарій відмови: дублікат id та AddLine до неіснуючого замовлення коректно кидають `InvalidOperationException` з читабельним повідомленням
+
+## Лабораторна робота 6 — Доменні події, делегати Action/Func, лямбди
+
+### Що додано
+- `Core/Events/OrderChangeKind.cs` — enum видів зміни (Created, LineAdded, Confirmed)
+- `Core/Events/OrderChangedEventArgs.cs` — дані події: OrderId, Kind, LinesCount, Total, At
+- `Core/Services/OrderService.cs` — подія `event EventHandler<OrderChangedEventArgs>? Changed`, приватний метод `OnChanged`, виклик після кожної успішної зміни (CreateOrder, AddLine, Confirm)
+- `Core/Import/ProductCsvImporter.cs` — додатковий параметр `Action<string>? onSkippedLine` для звіту про пропущені рядки CSV
+- `Cli/Program.cs` — два підписники на подію: локальний метод `OnOrderChanged` (консоль + `logs/app.log`) і лямбда-лічильник `(_, _) => changes++`; показано `-=` і сценарій відмови
+
+### Запуск
+| Команда | Що перевіряє |
+|---|---|
+| `dotnet run --project src/Cli` | подія працює з InMemoryOrderStore |
+| `dotnet run --project src/Cli -- --file` | подія працює з FileOrderStore |
+
+Лог подій: `src/Cli/bin/Debug/net8.0/logs/app.log` (створюється автоматично).
+
+### Ключова ідея
+`OrderService` не знає про консоль чи файл — він лише піднімає подію `Changed` після успішної зміни стану. Хто і як реагує на подію, вирішує `Program.cs`. Подія не піднімається, якщо операція впала на інваріанті (виняток кидається раніше, ніж викликається `OnChanged`).
+
+### Перевірено
+- Пошук `"Console"` і `"logs"` у `src/Core` — 0 результатів
+- Кожна успішна операція дає рівно одне повідомлення в консолі й файлі
+- Операція, що впала на інваріанті (AddLine до неіснуючого замовлення, Confirm порожнього замовлення) — повідомлення немає
+- Після `service.Changed -= OnOrderChanged` консоль і файл мовчать, але лямбда-лічильник продовжує рахувати
+- `logs/app.log` формується через `Path.Combine` + `Directory.CreateDirectory`
