@@ -1,6 +1,7 @@
 ﻿using Core;
 using Core.Abstractions;
 using Core.Domain;
+using Core.Events;
 using Core.Services;
 using Core.Storage;
 
@@ -16,43 +17,58 @@ IOrderStore store = useFile
 if (args.Contains("--cache"))
     store = new CachingOrderStore(store);
 
-// Альтернатива (додаткове завдання 3): IOrderStore store = StoreFactory.Create(args, dataPath);
-
 var service = new OrderService(store);
 
 Console.WriteLine($"Сховище: {store.GetType().Name}");
 
+// --- Крок 3: підписка локальним методом, консоль + лог-файл ---
+string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
+Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+
+void OnOrderChanged(object? sender, OrderChangedEventArgs e)
+{
+    string line = $"{e.At:HH:mm:ss} {e.Kind,-10} {e.OrderId} поз.:{e.LinesCount,2} сума:{e.Total,8:F2}";
+    Console.WriteLine(line);
+    File.AppendAllText(logPath, line + Environment.NewLine);
+}
+
+service.Changed += OnOrderChanged;
+
+// --- Крок 4: другий підписник — лямбда із замиканням над локальною змінною ---
+int changes = 0;
+service.Changed += (_, _) => changes++;
+
+// --- Крок 5: сценарій з кількома змінами, підрахунком і відпискою ---
 Order created = service.CreateOrder("CUST-999");
 service.AddLine(created.Id, "PR-999", "Тестовий товар", 199.99m, 2);
+service.Confirm(created.Id);
 
-Order paid = service.CreateOrder("CUST-998");
+Console.WriteLine($"Подій отримано: {changes}");
+
+service.Changed -= OnOrderChanged;          // відписуємось лише від логування
+
+Order paid = service.CreateOrder("CUST-998");   // ця операція — "тиха": у консолі й файлі нічого не буде
 service.AddLine(paid.Id, "PR-998", "Підтверджений товар", 50m, 3);
-service.Confirm(paid.Id);
 
-Console.WriteLine();
-Console.WriteLine("=== Усі замовлення ===");
-foreach (Order o in service.All())
-    Console.WriteLine($"  {o}");
+Console.WriteLine($"Подій отримано: {changes}"); // зросло лише завдяки лямбді-лічильнику, яка й далі підписана
 
-Console.WriteLine();
-Console.WriteLine("=== Пошук за id ===");
-Console.WriteLine($"  {service.Find(created.Id)}");
-
-Console.WriteLine();
-Console.WriteLine("=== Пошук: підтверджені замовлення ===");
-var confirmed = service.Search(o => o.Status == OrderStatus.Confirmed);
-Console.WriteLine($"Знайдено: {confirmed.Count}");
-foreach (Order o in confirmed)
-    Console.WriteLine($"  {o}");
-
+// --- Крок 6: сценарій відмови — виняток є, події немає ---
 Console.WriteLine();
 Console.WriteLine("=== Сценарій відмови ===");
-TryDo("повторне створення з тим самим id (дублікат)", () =>
-{
-    var dup = Order.Create(created.Id, "CUST-1");
-    store.Add(dup);
-});
 TryDo("AddLine до неіснуючого замовлення", () => service.AddLine("ORD-NOPE", "PR-1", "X", 1m, 1));
+TryDo("Confirm порожнього замовлення", () =>
+{
+    var empty = service.CreateOrder("CUST-997");   // ця операція сама по собі ВИКЛИЧЕ подію Created — це очікувано
+    service.Confirm(empty.Id);                      // а ця — ні, впаде на інваріанті до OnChanged
+});
+
+// --- Крок 7: делегат Func замість події — коли потрібне значення у відповідь ---
+Console.WriteLine();
+Console.WriteLine("=== FindAll: замовлення без жодного підтвердженого рядка (Draft) ===");
+var drafts = service.Search(o => o.Status == OrderStatus.Draft);
+Console.WriteLine($"Знайдено: {drafts.Count}");
+foreach (Order o in drafts)
+    Console.WriteLine($"  {o}");
 
 static void TryDo(string title, Action action)
 {
