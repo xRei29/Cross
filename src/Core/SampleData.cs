@@ -1,4 +1,5 @@
 using Core.Domain;
+using Core.Dto;
 
 namespace Core;
 
@@ -15,10 +16,21 @@ public static class SampleData
 
             if (i % 3 == 0)
                 order.Confirm();
+            else if (i == 5)
+                order.Cancel();
 
             orders.Add(order);
         }
 
         return orders;
     }
+
+    public static List<CustomerDto> Customers() =>
+    [
+        new CustomerDto("CUST-001", "Іван Петренко", "ivan.petrenko@example.com"),
+        new CustomerDto("CUST-002", "Олена Коваль", "olena.koval@example.com"),
+        new CustomerDto("CUST-003", "Андрій Шевченко", "andriy.shevchenko@example.com"),
+        new CustomerDto("CUST-004", "Марія Бондар", "maria.bondar@example.com"),
+        new CustomerDto("CUST-005", "Сергій Мельник", "serhiy.melnyk@example.com"),
+    ];
 }
