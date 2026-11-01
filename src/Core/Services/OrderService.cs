@@ -3,7 +3,7 @@ using Core.Domain;
 using Core.Events;
 
 namespace Core.Services;
-
+// Викликати Changed напряму може тільки сам OrderService
 public sealed class OrderService(IOrderStore store)
 {
     private readonly IOrderStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -17,7 +17,7 @@ public sealed class OrderService(IOrderStore store)
     {
         var order = Order.Create(Guid.NewGuid().ToString("N")[..8], customerId);
         _store.Add(order);
-        OnChanged(order, OrderChangeKind.Created);   // після Add, не до
+        OnChanged(order, OrderChangeKind.Created);   
         return order;
     }
 
@@ -26,7 +26,7 @@ public sealed class OrderService(IOrderStore store)
         Order order = _store.GetById(orderId)
             ?? throw new InvalidOperationException($"Немає замовлення з id={orderId}.");
 
-        order.AddLine(productId, name, price, quantity);  // якщо тут виняток — до OnChanged справа не дійде
+        order.AddLine(productId, name, price, quantity);  
         _store.Update(order);
         OnChanged(order, OrderChangeKind.LineAdded);
     }
@@ -36,7 +36,7 @@ public sealed class OrderService(IOrderStore store)
         Order order = _store.GetById(orderId)
             ?? throw new InvalidOperationException($"Немає замовлення з id={orderId}.");
 
-        order.Confirm();                                    // якщо порожнє замовлення — виняток, подій немає
+        order.Confirm();                                    
         _store.Update(order);
         OnChanged(order, OrderChangeKind.Confirmed);
     }
