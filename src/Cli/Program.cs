@@ -148,11 +148,11 @@ PrintCustomers(ReportService.TopCustomersByOrderCount(items, 3));
 
 // === Додаткове завдання 3: query syntax, звірка з report-status ===
 Console.WriteLine();
-Console.WriteLine("=== Query syntax: групування за статусом (має збігатись з report-status) ===");
+Console.WriteLine("=== Query syntax: групування за статусом  ===");
 foreach (var g in ReportService.ByStatusQuerySyntax(items))
     Console.WriteLine($"  {g.Key,-10} позицій: {g.Count,3}  сумарно: {g.TotalAmount,10:F2}");
 
-// === Додаткове завдання 4: Stopwatch на 100 000 записів (лише з --bench) ===
+// === Додаткове завдання 4: Stopwatch на 100 000 записів  ===
 if (args.Contains("--bench"))
 {
     Console.WriteLine();
@@ -191,6 +191,8 @@ static List<Order> GenerateManyOrders(int count)
     }
     return list;
 }
+
+// 
 
 static void TryDo(string title, Action action)
 {

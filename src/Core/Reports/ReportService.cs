@@ -5,7 +5,7 @@ namespace Core.Reports;
 
 public static class ReportService
 {
-    // 1) топ-N клієнтів за сумарною вартістю замовлень: GroupBy + Sum + стабільний топ-N
+    //  топ-N клієнтів за сумарною вартістю замовлень: GroupBy + Sum + стабільний топ-N
     public static IReadOnlyList<CustomerTotal> TopCustomers(IEnumerable<Order> source, int n) =>
         source.GroupBy(o => o.CustomerId, StringComparer.OrdinalIgnoreCase)
             .Select(g => new CustomerTotal(g.Key, g.Count(), g.Sum(o => o.Total)))
@@ -14,7 +14,7 @@ public static class ReportService
             .Take(n)
             .ToList();
 
-    // 2) фільтр + сортування + проєкція: замовлення дорожче threshold
+    //  фільтр + сортування + проєкція: замовлення дорожче 
     public static IReadOnlyList<OrderReportLine> ExpensiveOrders(IEnumerable<Order> source, decimal threshold) =>
         source.Where(o => o.Total > threshold)
             .OrderByDescending(o => o.Total)
@@ -22,14 +22,14 @@ public static class ReportService
             .Select(o => new OrderReportLine(o.Id, o.CustomerId, o.Total, o.Status))
             .ToList();
 
-    // 3) групування за статусом з підрахунком і сумою
+    //  групування за статусом з підрахунком і сумою
     public static IReadOnlyList<GroupSummary> ByStatus(IEnumerable<Order> source) =>
         source.GroupBy(o => o.Status.ToString())
             .Select(g => new GroupSummary(g.Key, g.Count(), g.Sum(o => o.Total)))
             .OrderByDescending(s => s.TotalAmount)
             .ToList();
 
-    // 4) агрегати з обробкою порожньої послідовності
+    //  агрегати з обробкою порожньої послідовності
     public static (int Items, decimal Total, decimal Average, decimal Max) Totals(IEnumerable<Order> source)
     {
         var list = source.ToList();
@@ -59,12 +59,12 @@ public static IReadOnlyList<CustomerTotal> TopCustomersByOrderCount(IEnumerable<
         public static IReadOnlyList<GroupSummary> ByStatusQuerySyntax(IEnumerable<Order> source)
 {
     var query =
-        from o in source
-        group o by o.Status.ToString() into g
-        orderby g.Sum(x => x.Total) descending
-        select new GroupSummary(g.Key, g.Count(), g.Sum(x => x.Total));
+        from o in source  
+        group o by o.Status.ToString() into g // Групуємо за статусом
+        orderby g.Sum(x => x.Total) descending // Сортуємо групи за сумою
+        select new GroupSummary(g.Key, g.Count(), g.Sum(x => x.Total)); // формуєм результат
 
-    return query.ToList();
+    return query.ToList(); 
 }
 
 }
