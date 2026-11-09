@@ -12,7 +12,7 @@ public static class OrderPolicy
         int draftCount = existingOrders.Count(o => o.CustomerId == customerId && o.Status == OrderStatus.Draft);
 
         if (draftCount >= MaxDraftOrdersPerCustomer)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Клієнт {customerId} вже має {draftCount} непідтверджених замовлень — ліміт {MaxDraftOrdersPerCustomer}");
     }
 }

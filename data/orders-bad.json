@@ -1,0 +1,18 @@
+[
+  {
+    "id": "BAD-001",
+    "customerId": "CUST-001",
+    "status": "Draft",
+    "lines": [
+      { "productId": "PR-001", "name": "Нормальний товар", "price": 100.00, "quantity": 1 }
+    ]
+  },
+  {
+    "id": "BAD-002",
+    "customerId": "CUST-002",
+    "status": "Draft",
+    "lines": [
+      { "productId": "PR-002", "name": "Товар з від'ємною ціною", "price": -5.00, "quantity": 1 }
+    ]
+  }
+]

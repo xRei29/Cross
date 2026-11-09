@@ -275,3 +275,38 @@ DTO (ProductDto, OrderDto) — незмінний формат даних, бе�
   вивід ідентичний методному синтаксису `ByStatus`.
 - `--bench`: `Stopwatch`-порівняння на 100 000 згенерованих замовлень — варіант з проміжним
   `ToList()` у середині ланцюжка проти варіанту без нього.
+
+
+
+  ## Лабораторна робота 8 — async/await, скасування, доменні винятки, unit-тести
+
+Імпорт замовлень з JSON став асинхронним: `IOrderImporter.ImportAsync` → `JsonOrderImporter`
+(`FileStream` з `useAsync: true`, `JsonSerializer.DeserializeAsync`) → `OrderService.ImportAsync` → Cli.
+`CancellationToken` створює `Program` і передає всім рівням; повторний імпорт ідемпотентний
+(замовлення з наявним id пропускаються). Помилки розділені: бізнес-правила — `DomainException`,
+некоректні аргументи — `ArgumentException`, технічні збої файлу — `StorageException` з `InnerException`.
+
+### Запуск
+| Команда | Що перевіряє |
+|---|---|
+| `dotnet test` | 32 unit-тести Core (без консолі й диска) |
+| `dotnet run --project src/Cli -- import data/orders-import.json` | успішний імпорт |
+| `... import data/orders-import.json --cancel-after=300` | скасування: «Імпорт скасовано.» |
+| `... import data/orders-import.json --timeout=300` | таймаут (окремо від скасування користувачем) |
+| `... import-stream data/orders-import.json --slow` | потокове читання (`IAsyncEnumerable`) |
+| `... import data/orders-bad.json` | «Дані відхилено: Запис 2: ...» |
+| `... import data/orders-broken.json` | `StorageException` з `JsonException` |
+
+Ctrl+C під час `import ... --slow` також скасовує імпорт.
+
+### Перевірено
+- `dotnet test` двічі: 32 з 32 пройшли
+- Скасований токен + неіснуючий файл дає скасування, а не `FileNotFoundException`
+- Повторний імпорт у `--file`: 5 додано, потім 0 додано і 5 пропущено
+- Пошук `.Result`, `.Wait()`, `async void` у `src/Core` і `src/Cli` — 0 результатів
+
+### Додаткові завдання
+- `StreamAsync` + `await foreach` + `[EnumeratorCancellation]`
+- `CreateLinkedTokenSource`: таймаут відрізняється від скасування користувачем
+- `IProgress<int>` (синхронна реалізація `ConsoleProgress`)
+- Покриття (coverlet): рядки 40,94%, гілки 35,32% по всьому `Core`

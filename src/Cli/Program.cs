@@ -1,6 +1,7 @@
 ﻿using Core;
 using Core.Abstractions;
 using Core.Domain;
+using Core.Dto;
 using Core.Events;
 using Core.Import;
 using Core.Notifications;
@@ -19,6 +20,13 @@ if (args.Contains("--cache"))
 
 var service = new OrderService(store);
 Console.WriteLine($"Сховище: {store.GetType().Name}");
+
+// === Лабораторна 8: асинхронний імпорт (команди import / import-stream) ===
+if (args.Length > 0 && args[0] is "import" or "import-stream")
+{
+    await RunImportAsync(service, args);
+    return;
+}
 
 // === Підписка на подію Changed: вивід у консоль + запис у лог-файл ===
 string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
@@ -180,6 +188,100 @@ if (args.Contains("--bench"))
     Console.WriteLine($"З проміжним ToList:    {sw2.ElapsedMilliseconds} мс, знайдено {withMidToList.Count}");
 }
 
+static int? IntOpt(string[] args, string name)
+{
+    string prefix = name + "=";
+    string? raw = args.FirstOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
+    return raw is not null && int.TryParse(raw[prefix.Length..], out int v) ? v : null;
+}
+
+static async Task RunImportAsync(OrderService service, string[] args)
+{
+    bool stream = args[0] == "import-stream";
+    string path = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal))
+                  ?? Path.Combine("data", "orders-import.json");
+    int? cancelAfter = IntOpt(args, "--cancel-after");
+    int? timeoutMs = IntOpt(args, "--timeout");
+    bool slow = args.Contains("--slow") || cancelAfter is not null || timeoutMs is not null;
+
+    // Токен користувача (Ctrl+C або --cancel-after) і окремий токен таймауту.
+    using var userCts = new CancellationTokenSource();
+    using var timeoutCts = new CancellationTokenSource();
+    using var linked = CancellationTokenSource.CreateLinkedTokenSource(userCts.Token, timeoutCts.Token);
+    CancellationToken ct = linked.Token;
+
+    ConsoleCancelEventHandler onCancel = (_, e) =>
+    {
+        e.Cancel = true;          // не вбивати процес, а скасувати операцію
+        userCts.Cancel();
+    };
+    Console.CancelKeyPress += onCancel;
+
+    if (cancelAfter is int c) userCts.CancelAfter(c);
+    if (timeoutMs is int t) timeoutCts.CancelAfter(t);
+
+    var progress = new ConsoleProgress();
+    Console.WriteLine($"Імпорт: {path}{(slow ? " (повільний режим)" : "")}");
+
+    try
+    {
+        try
+        {
+            if (stream)
+            {
+                int n = 0;
+                var streamer = new JsonOrderImporter();
+                await foreach (Order o in streamer.StreamAsync(path, ct).WithCancellation(ct))
+                {
+                    if (slow) await Task.Delay(200, ct);
+                    n++;
+                    Console.WriteLine($"  отримано {o.Id} (клієнт {o.CustomerId}, сума {o.Total:F2})");
+                }
+                Console.WriteLine($"Потік завершено, замовлень: {n}");
+            }
+            else
+            {
+                IOrderImporter importer = new JsonOrderImporter();
+                if (slow) importer = new SlowOrderImporter(importer, TimeSpan.FromMilliseconds(200));
+
+                var (added, skipped) = await service.ImportAsync(importer, path, ct, progress);
+                progress.Finish();
+                Console.WriteLine($"Імпортовано: {added}, пропущено (вже є): {skipped}");
+            }
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !userCts.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Імпорт не вклався в {timeoutMs} мс.");
+        }
+    }
+    catch (TimeoutException ex)
+    {
+        progress.Finish();
+        Console.WriteLine($"Таймаут: {ex.Message}");
+    }
+    catch (OperationCanceledException)
+    {
+        progress.Finish();
+        Console.WriteLine("Імпорт скасовано.");
+    }
+    catch (DomainException ex)
+    {
+        progress.Finish();
+        Console.WriteLine($"Дані відхилено: {ex.Message}");
+    }
+    catch (StorageException ex)
+    {
+        progress.Finish();
+        Console.WriteLine($"Помилка сховища: {ex.Message}");
+        if (ex.InnerException is not null)
+            Console.WriteLine($"  причина: {ex.InnerException.GetType().Name}");
+    }
+    finally
+    {
+        Console.CancelKeyPress -= onCancel;
+    }
+}
+
 static List<Order> GenerateManyOrders(int count)
 {
     var list = new List<Order>(count);
@@ -191,8 +293,6 @@ static List<Order> GenerateManyOrders(int count)
     }
     return list;
 }
-
-// 
 
 static void TryDo(string title, Action action)
 {

@@ -18,7 +18,7 @@ public sealed class Order
         Id = id;
         CustomerId = customerId;
     }
-    
+
 
     // Єдиний спосіб створити замовлення: усі перевірки тут.
     public static Order Create(string id, string customerId)
@@ -30,13 +30,17 @@ public sealed class Order
 
         return new Order(id.Trim(), customerId.Trim());
     }
+
     public void AddLine(string productId, string name, decimal price, int quantity)
     {
         if (Status != OrderStatus.Draft)
-            throw new InvalidOperationException($"Замовлення {Id} у статусі {Status}, рядки додавати не можна");
+            throw new DomainException($"Замовлення {Id} у статусі {Status}, рядки додавати не можна");
 
         if (string.IsNullOrWhiteSpace(productId))
             throw new ArgumentException("Ідентифікатор товару обов'язковий", nameof(productId));
+
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Назва товару обов'язкова", nameof(name));
 
         if (price < 0)
             throw new ArgumentOutOfRangeException(nameof(price), price, "Ціна не може бути від'ємною");
@@ -50,7 +54,7 @@ public sealed class Order
     public void Confirm()
     {
         if (_lines.Count == 0)
-            throw new InvalidOperationException($"Не можна підтвердити порожнє замовлення {Id}");
+            throw new DomainException($"Не можна підтвердити порожнє замовлення {Id}");
 
         ChangeStatus(OrderStatus.Confirmed);
     }
@@ -59,8 +63,6 @@ public sealed class Order
     {
         ChangeStatus(OrderStatus.Cancelled);
     }
-
-
 
     // Додаткове завдання №3: явні дозволені переходи станів через switch expression (tuple pattern).
     private void ChangeStatus(OrderStatus newStatus)
@@ -74,7 +76,7 @@ public sealed class Order
         };
 
         if (!allowed)
-            throw new InvalidOperationException($"Перехід зі стану {Status} у {newStatus} неможливий");
+            throw new DomainException($"Перехід зі стану {Status} у {newStatus} неможливий");
 
         Status = newStatus;
     }

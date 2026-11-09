@@ -17,16 +17,16 @@ public sealed class OrderService(IOrderStore store)
     {
         var order = Order.Create(Guid.NewGuid().ToString("N")[..8], customerId);
         _store.Add(order);
-        OnChanged(order, OrderChangeKind.Created);   
+        OnChanged(order, OrderChangeKind.Created);
         return order;
     }
 
     public void AddLine(string orderId, string productId, string name, decimal price, int quantity)
     {
         Order order = _store.GetById(orderId)
-            ?? throw new InvalidOperationException($"Немає замовлення з id={orderId}.");
+            ?? throw new DomainException($"Немає замовлення з id={orderId}.");
 
-        order.AddLine(productId, name, price, quantity);  
+        order.AddLine(productId, name, price, quantity);
         _store.Update(order);
         OnChanged(order, OrderChangeKind.LineAdded);
     }
@@ -34,11 +34,43 @@ public sealed class OrderService(IOrderStore store)
     public void Confirm(string orderId)
     {
         Order order = _store.GetById(orderId)
-            ?? throw new InvalidOperationException($"Немає замовлення з id={orderId}.");
+            ?? throw new DomainException($"Немає замовлення з id={orderId}.");
 
-        order.Confirm();                                    
+        order.Confirm();
         _store.Update(order);
         OnChanged(order, OrderChangeKind.Confirmed);
+    }
+
+    /// <summary>
+    /// Асинхронний імпорт замовлень. Повторний імпорт того самого файлу безпечний:
+    /// замовлення з уже наявним id пропускаються (ідемпотентність).
+    /// </summary>
+    public async Task<(int Added, int Skipped)> ImportAsync(
+        IOrderImporter importer,
+        string path,
+        CancellationToken ct = default,
+        IProgress<int>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+        ct.ThrowIfCancellationRequested();
+
+        IReadOnlyList<Order> imported = await importer.ImportAsync(path, ct, progress);
+
+        int added = 0, skipped = 0;
+        foreach (Order order in imported)
+        {
+            if (_store.GetById(order.Id) is not null)
+            {
+                skipped++;
+                continue;
+            }
+
+            _store.Add(order);
+            OnChanged(order, OrderChangeKind.Created);
+            added++;
+        }
+
+        return (added, skipped);
     }
 
     public IReadOnlyList<Order> All() => _store.List();

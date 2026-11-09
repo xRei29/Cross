@@ -1,0 +1,44 @@
+[
+  {
+    "id": "IMP-001",
+    "customerId": "CUST-001",
+    "status": "Draft",
+    "lines": [
+      { "productId": "PR-001", "name": "Ноутбук Lenovo IdeaPad", "price": 24999.99, "quantity": 1 },
+      { "productId": "PR-002", "name": "Миша бездротова Logitech", "price": 399.50, "quantity": 2 }
+    ]
+  },
+  {
+    "id": "IMP-002",
+    "customerId": "CUST-002",
+    "status": "Confirmed",
+    "lines": [
+      { "productId": "PR-003", "name": "Монітор", "price": 14000.00, "quantity": 1 }
+    ]
+  },
+  {
+    "id": "IMP-003",
+    "customerId": "CUST-003",
+    "status": "Draft",
+    "lines": [
+      { "productId": "PR-004", "name": "Клавіатура", "price": 1200.00, "quantity": 3 }
+    ]
+  },
+  {
+    "id": "IMP-004",
+    "customerId": "CUST-004",
+    "status": "Cancelled",
+    "lines": [
+      { "productId": "PR-005", "name": "Навушники", "price": 850.00, "quantity": 1 }
+    ]
+  },
+  {
+    "id": "IMP-005",
+    "customerId": "CUST-005",
+    "status": "Confirmed",
+    "lines": [
+      { "productId": "PR-006", "name": "Веб-камера", "price": 1500.00, "quantity": 2 },
+      { "productId": "PR-007", "name": "Килимок", "price": 150.00, "quantity": 4 }
+    ]
+  }
+]
