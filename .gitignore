@@ -486,3 +486,7 @@ $RECYCLE.BIN/
 publish/
 
 data/orders.json
+
+# Lab 9: секрети й тимчасові файли запису
+secrets.json
+*.tmp

@@ -1,7 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
 using Core.Abstractions;
 using Core.Domain;
 using Core.Dto;
@@ -10,10 +9,14 @@ namespace Core.Storage;
 
 public sealed class FileOrderStore(string path) : IOrderStore
 {
+    // CamelCase у файлі; кирилиця читабельна (не \uXXXX); при читанні регістр імен не важливий,
+    // тож старі файли з "Id"/"CustomerId" теж читаються.
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new JsonStringEnumConverter() }
     };
 
@@ -22,36 +25,100 @@ public sealed class FileOrderStore(string path) : IOrderStore
     // Прапорець, чи завантажені дані з файлу в кеш хоча б раз
     private bool _loaded;
 
-    // Приватний метод ланцюжка завантаження 
+    // Приватний метод ланцюжка завантаження
     private void EnsureLoaded()
     {
         if (_loaded) return; // Якщо вже завантажено — нічого не робимо
 
+        _cache.Clear();
+
         // Якщо файл існує на диску, то зчитуємо його
         if (File.Exists(_path))
         {
-            // Десеріалізуємо JSON у список DTO (якщо файл пустий — повертаємо порожній список)
-            var dtos = JsonSerializer.Deserialize<List<OrderDto>>(File.ReadAllText(_path), Options) ?? [];
-            foreach (OrderDto dto in dtos)
+            try
             {
-                // Перетворюємо DTO назад у бізнес-сутність Order через фабричний метод
-                Order order = Order.FromDto(dto);
-                _cache[order.Id] = order; // Записуємо у внутрішній кеш
+                var dtos = JsonSerializer.Deserialize<List<OrderDto?>>(File.ReadAllText(_path), Options) ?? [];
+                for (int i = 0; i < dtos.Count; i++)
+                {
+                    OrderDto? dto = dtos[i];
+                    if (dto?.Lines is null)
+                        throw new StorageException($"Файл даних {_path}: запис {i + 1} порожній або без списку рядків.");
+
+                    // Перетворюємо DTO назад у бізнес-сутність: інваріанти перевіряються повторно
+                    Order order = Order.FromDto(dto);
+                    _cache[order.Id] = order;
+                }
+            }
+            catch (JsonException ex)
+            {
+                throw new StorageException($"Файл даних {_path} пошкоджено: некоректний JSON ({ex.Message})", ex);
+            }
+            catch (Exception ex) when (ex is ArgumentException or DomainException)
+            {
+                throw new StorageException($"Файл даних {_path} містить некоректне замовлення: {ex.Message}", ex);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new StorageException($"Не вдалося прочитати файл даних {_path}: {ex.Message}", ex);
             }
         }
 
         _loaded = true; // Ставимо мітку, що завантаження відбулося
     }
 
-    // Приватний метод для скидання (запису) поточного стану кешу назад у файл (Flush/Persistence)
+    // Атомарний запис: спершу повний вміст у .tmp, потім File.Move з перезаписом.
+    // Якщо процес впаде посеред запису, старий файл лишається цілим.
     private void Flush()
     {
-        // Автоматично створюємо папку для файлу, якщо вона ще не існує
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        
-        // Серіалізуємо всі сутності з кешу у DTO, перетворюємо в список і записуємо у файл
-        File.WriteAllText(_path,
-            JsonSerializer.Serialize(_cache.Values.Select(o => o.ToDto()).ToList(), Options));
+        string json = JsonSerializer.Serialize(_cache.Values.Select(o => o.ToDto()).ToList(), Options);
+        string tmp = _path + ".tmp";
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, _path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TryDelete(tmp);
+            throw new StorageException($"Не вдалося записати файл даних {_path}: {ex.Message}", ex);
+        }
+    }
+
+    private static void TryDelete(string file)
+    {
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Тимчасовий файл не вдалося прибрати — не критично, головна помилка вже в дорозі.
+        }
+    }
+
+    /// <summary>
+    /// Експорт: повністю замінює вміст файлу переданою колекцією одним атомарним записом.
+    /// Старий вміст (навіть пошкоджений) не читається.
+    /// </summary>
+    public void ReplaceAll(IEnumerable<Order> orders)
+    {
+        ArgumentNullException.ThrowIfNull(orders);
+
+        var fresh = new Dictionary<string, Order>(StringComparer.OrdinalIgnoreCase);
+        foreach (Order order in orders)
+        {
+            if (!fresh.TryAdd(order.Id, order))
+                throw new DomainException($"Дубль id={order.Id} у колекції для запису.");
+        }
+
+        _cache.Clear();
+        foreach (Order order in fresh.Values)
+            _cache[order.Id] = order;
+
+        _loaded = true;
+        Flush();
     }
 
     public IReadOnlyList<Order> List()
@@ -72,7 +139,7 @@ public sealed class FileOrderStore(string path) : IOrderStore
         EnsureLoaded();
         if (_cache.ContainsKey(item.Id))
             throw new InvalidOperationException($"Запис з id={item.Id} уже існує.");
-        
+
         _cache.Add(item.Id, item);
         Flush(); // Одразу записуємо зміни на диск при додаванні
     }

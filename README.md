@@ -310,3 +310,69 @@ Ctrl+C під час `import ... --slow` також скасовує імпор�
 - `CreateLinkedTokenSource`: таймаут відрізняється від скасування користувачем
 - `IProgress<int>` (синхронна реалізація `ConsoleProgress`)
 - Покриття (coverlet): рядки 40,94%, гілки 35,32% по всьому `Core`
+
+
+## Лабораторна 9. Конфігурація, шляхи та JSON
+
+Налаштування винесені з коду в `src/Cli/appsettings*.json`. Секрети в репозиторії не зберігаються.
+
+### Джерела конфігурації (від слабшого до сильнішого)
+
+1. `appsettings.json`
+2. `appsettings.{профіль}.json` (профіль береться зі змінної `CROSSAPP_ENVIRONMENT`, за замовчуванням `Development`)
+3. user-secrets
+4. змінні середовища з префіксом `CROSSAPP_`
+5. аргументи командного рядка
+
+Пізніше джерело перекриває раніше.
+
+### Ключі
+
+| Ключ | Значення за замовчуванням | Змінна середовища | Призначення |
+|---|---|---|---|
+| `Storage:DataPath` | `data` | `CROSSAPP_Storage__DataPath` або `CROSSAPP_DATA_PATH` | каталог даних (відносний рахується від `AppContext.BaseDirectory`) |
+| `Storage:FileName` | `orders.json` | `CROSSAPP_Storage__FileName` | ім'я файлу даних |
+| `Logging:MinimumLevel` | `Information` | `CROSSAPP_Logging__MinimumLevel` | мінімальний рівень логу |
+| `Orders:Currency` | `UAH` | `CROSSAPP_Orders__Currency` | валюта замовлень (ключ варіанту) |
+| `EnvironmentName` | `Development` | `CROSSAPP_EnvironmentName` | назва профілю |
+| `Integration:ApiKey` | немає | `CROSSAPP_Integration__ApiKey` | секрет, лише user-secrets або змінна |
+
+Вкладений ключ у змінній середовища записується через `__`.
+
+### Профілі
+
+- **Development:** рівень логу `Debug`, дані в `data`.
+- **Production:** рівень логу `Warning`, дані в `data-prod`.
+
+### Секрети
+
+```powershell
+dotnet user-secrets init --project src/Cli
+dotnet user-secrets set "Integration:ApiKey" "local-dev-key" --project src/Cli
+dotnet user-secrets list --project src/Cli
+```
+
+У Windows: `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`. Файл не зашифрований, тому не для продакшену. Програма друкує лише довжину ключа.
+
+### Запуск
+
+```powershell
+dotnet run --project src/Cli -- config
+dotnet run --project src/Cli -- export
+dotnet run --project src/Cli -- list
+
+$env:CROSSAPP_DATA_PATH = "$env:TEMP\crossapp-data"
+dotnet run --no-build --project src/Cli -- export
+
+$env:CROSSAPP_ENVIRONMENT = "Production"
+dotnet run --no-build --project src/Cli -- config
+```
+
+```bash
+CROSSAPP_DATA_PATH=/tmp/crossapp-data dotnet run --project src/Cli -- export
+CROSSAPP_ENVIRONMENT=Production dotnet run --project src/Cli -- config
+```
+
+### Запис JSON
+
+`FileOrderStore` пише атомарно: спершу в `orders.json.tmp`, потім `File.Move(..., overwrite: true)`. Ключі camelCase, кирилиця не екранується (`UnsafeRelaxedJsonEscaping`). Пошкоджений файл дає `StorageException` з `JsonException` усередині, а `export` його відновлює.

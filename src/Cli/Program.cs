@@ -1,5 +1,7 @@
-﻿using Core;
+﻿using System.Reflection;
+using Core;
 using Core.Abstractions;
+using Core.Configuration;
 using Core.Domain;
 using Core.Dto;
 using Core.Events;
@@ -8,11 +10,70 @@ using Core.Notifications;
 using Core.Reports;
 using Core.Services;
 using Core.Storage;
+using Microsoft.Extensions.Configuration;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+// === Лабораторна 9: конфігурація (appsettings → профіль → user-secrets → змінні середовища → аргументи) ===
+string envName = Environment.GetEnvironmentVariable("CROSSAPP_ENVIRONMENT") ?? "Development";
+
+IConfigurationRoot config;
+AppOptions options;
+string dataPath;
+try
+{
+    config = new ConfigurationBuilder()
+        .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+        .AddJsonFile($"appsettings.{envName}.json", optional: true)
+        .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true)
+        .AddEnvironmentVariables(prefix: "CROSSAPP_")
+        .AddCommandLine(args)
+        .Build();
+
+    options = config.Get<AppOptions>() ?? new AppOptions();
+
+    // Проста змінна CROSSAPP_DATA_PATH перекриває розділ Storage
+    StorageOptions storageOptions =
+        options.Storage.WithDataPathOverride(Environment.GetEnvironmentVariable("CROSSAPP_DATA_PATH"));
+    dataPath = storageOptions.ResolveFullPath(AppContext.BaseDirectory);
+}
+catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException
+                           or UnauthorizedAccessException)
+{
+    Console.WriteLine($"Помилка конфігурації: {ex.Message}");
+    return;
+}
+
+string? apiKey = config["Integration:ApiKey"];
+var log = new ConsoleLog(options.Logging.MinimumLevel);
+
+// === Команди лабораторної 9: config / export / list ===
+if (args.Length > 0 && args[0] is "config" or "export" or "list")
+{
+    PrintConfigSummary(envName, options, dataPath, apiKey, log);
+    try
+    {
+        switch (args[0])
+        {
+            case "export":
+                RunExport(dataPath, options, log);
+                break;
+            case "list":
+                RunList(dataPath, options);
+                break;
+        }
+    }
+    catch (StorageException ex)
+    {
+        Console.WriteLine($"Помилка сховища: {ex.Message}");
+        if (ex.InnerException is not null)
+            Console.WriteLine($"  причина: {ex.InnerException.GetType().Name}");
+    }
+    return;
+}
+
 bool useFile = args.Contains("--file");
-string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "orders.json");
 
 IOrderStore store = useFile ? new FileOrderStore(dataPath) : new InMemoryOrderStore(SampleData.Orders());
 if (args.Contains("--cache"))
@@ -188,6 +249,48 @@ if (args.Contains("--bench"))
     Console.WriteLine($"З проміжним ToList:    {sw2.ElapsedMilliseconds} мс, знайдено {withMidToList.Count}");
 }
 
+static void PrintConfigSummary(string envName, AppOptions options, string dataPath, string? apiKey, ConsoleLog log)
+{
+    Console.WriteLine($"Профіль    : {envName} (EnvironmentName={options.EnvironmentName})");
+    Console.WriteLine($"Рівень логу: {options.Logging.MinimumLevel}");
+    Console.WriteLine($"Файл даних : {dataPath}");
+    Console.WriteLine($"Валюта     : {options.Orders.Currency}");
+    Console.WriteLine(apiKey is null ? "ApiKey: не заданий" : $"ApiKey: присутній, довжина {apiKey.Length}");
+
+    log.Debug($"Базовий каталог застосунку: {AppContext.BaseDirectory}");
+    log.Debug($"Поточний робочий каталог  : {Environment.CurrentDirectory}");
+    if (apiKey is null)
+        log.Warn("Integration:ApiKey не заданий (user-secrets або CROSSAPP_Integration__ApiKey).");
+}
+
+static void RunExport(string dataPath, AppOptions options, ConsoleLog log)
+{
+    var orders = SampleData.Orders().ToList();
+    log.Info($"Експорт {orders.Count} замовлень у JSON (атомарний запис через .tmp).");
+    log.Debug($"Тимчасовий файл: {dataPath}.tmp");
+
+    new FileOrderStore(dataPath).ReplaceAll(orders);
+
+    Console.WriteLine($"Експортовано записів: {orders.Count}");
+    Console.WriteLine($"Загальна сума: {orders.Sum(o => o.Total):F2} {options.Orders.Currency}");
+}
+
+static void RunList(string dataPath, AppOptions options)
+{
+    if (!File.Exists(dataPath))
+    {
+        Console.WriteLine("Файл даних ще не створено. Спершу виконайте: export");
+        return;
+    }
+
+    IReadOnlyList<Order> orders = new FileOrderStore(dataPath).List();
+    Console.WriteLine($"Прочитано записів: {orders.Count}");
+    foreach (Order o in orders.Take(5))
+        Console.WriteLine($"  {o.Id,-10} {o.CustomerId,-10} {o.Total,10:F2} {options.Orders.Currency}  {o.Status}");
+    if (orders.Count > 5)
+        Console.WriteLine($"  ... ще {orders.Count - 5}");
+}
+
 static int? IntOpt(string[] args, string name)
 {
     string prefix = name + "=";
@@ -204,16 +307,16 @@ static async Task RunImportAsync(OrderService service, string[] args)
     int? timeoutMs = IntOpt(args, "--timeout");
     bool slow = args.Contains("--slow") || cancelAfter is not null || timeoutMs is not null;
 
-    // Токен користувача (Ctrl+C або --cancel-after) і окремий токен таймауту.
-    using var userCts = new CancellationTokenSource();
-    using var timeoutCts = new CancellationTokenSource();
+    // Токен користувача 
+    using var userCts = new CancellationTokenSource();   // Ctrl+C або --cancel-after
+    using var timeoutCts = new CancellationTokenSource();   // таймаут
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(userCts.Token, timeoutCts.Token);
     CancellationToken ct = linked.Token;
 
     ConsoleCancelEventHandler onCancel = (_, e) =>
     {
         e.Cancel = true;          // не вбивати процес, а скасувати операцію
-        userCts.Cancel();
+        userCts.Cancel();   // сама операція не зупиняється, але передається сигнал про скасування
     };
     Console.CancelKeyPress += onCancel;
 
@@ -244,7 +347,7 @@ static async Task RunImportAsync(OrderService service, string[] args)
                 IOrderImporter importer = new JsonOrderImporter();
                 if (slow) importer = new SlowOrderImporter(importer, TimeSpan.FromMilliseconds(200));
 
-                var (added, skipped) = await service.ImportAsync(importer, path, ct, progress);
+                var (added, skipped) = await service.ImportAsync(importer, path, ct, progress); // передача ct у сервіс
                 progress.Finish();
                 Console.WriteLine($"Імпортовано: {added}, пропущено (вже є): {skipped}");
             }

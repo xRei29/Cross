@@ -7,10 +7,7 @@ using Core.Dto;
 
 namespace Core.Storage;
 
-/// <summary>
-/// Читає масив OrderDto із JSON-файлу справді асинхронно (FileStream з useAsync: true).
-/// Усе або нічого: якщо хоч один запис некоректний — кидається DomainException і нічого не повертається.
-/// </summary>
+
 public sealed class JsonOrderImporter : IOrderImporter
 {
     private static readonly JsonSerializerOptions Options = new()
@@ -24,19 +21,18 @@ public sealed class JsonOrderImporter : IOrderImporter
         CancellationToken ct = default,
         IProgress<int>? progress = null)
     {
-        // Перевірка ПЕРЕД відкриттям файлу: уже скасований токен має давати OperationCanceledException,
-        // а не FileNotFoundException.
+        
         ct.ThrowIfCancellationRequested();
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);    
 
         List<OrderDto?> dtos;
         try
         {
             await using var stream = new FileStream(
-                path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+                path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true); // вмикає справжній асинхронний ввід-вивід
             dtos = await JsonSerializer.DeserializeAsync<List<OrderDto?>>(stream, Options, ct) ?? [];
         }
-        catch (FileNotFoundException ex)          // раніше за IOException: це його нащадок
+        catch (FileNotFoundException ex)          // раніше за IOException
         {
             throw new StorageException($"Файл не знайдено: {path}", ex);
         }
@@ -58,7 +54,7 @@ public sealed class JsonOrderImporter : IOrderImporter
 
         for (int i = 0; i < dtos.Count; i++)
         {
-            ct.ThrowIfCancellationRequested();
+            ct.ThrowIfCancellationRequested(); // перевірка на скасування всередині циклу, щоб не чекати завершення всіх ітерацій
 
             Order order = ToOrder(dtos[i], i + 1);
             if (!ids.Add(order.Id))
@@ -71,10 +67,9 @@ public sealed class JsonOrderImporter : IOrderImporter
         return result;
     }
 
-    /// <summary>
-    /// Потокове читання: замовлення віддаються по одному, не завантажуючи весь файл у пам'ять.
-    /// [EnumeratorCancellation] — токен із .WithCancellation(ct) потрапляє в параметр ct.
-    /// </summary>
+    
+    // Потокове читання: замовлення віддаються по одному, не завантажуючи весь файл у пам'ять.
+    
     public async IAsyncEnumerable<Order> StreamAsync(
         string path,
         [EnumeratorCancellation] CancellationToken ct = default)
@@ -82,7 +77,7 @@ public sealed class JsonOrderImporter : IOrderImporter
         ct.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        // yield не можна всередині try з catch, тому тут помилки файлу/JSON не загортаються в StorageException.
+        
         await using var stream = new FileStream(
             path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
 
