@@ -348,7 +348,7 @@ Ctrl+C під час `import ... --slow` також скасовує імпор�
 
 ```powershell
 dotnet user-secrets init --project src/Cli
-dotnet user-secrets set "Integration:ApiKey" "local-dev-key" --project src/Cli
+dotnet user-secrets set "Integration:ApiKey" "<ключ>" --project src/Cli
 dotnet user-secrets list --project src/Cli
 ```
 
@@ -376,3 +376,17 @@ CROSSAPP_ENVIRONMENT=Production dotnet run --project src/Cli -- config
 ### Запис JSON
 
 `FileOrderStore` пише атомарно: спершу в `orders.json.tmp`, потім `File.Move(..., overwrite: true)`. Ключі camelCase, кирилиця не екранується (`UnsafeRelaxedJsonEscaping`). Пошкоджений файл дає `StorageException` з `JsonException` усередині, а `export` його відновлює.
+
+dotnet run --no-build --project src/Cli -- config
+cd src\Cli
+dotnet run --no-build -- config
+cd ..\..
+
+dotnet run --no-build --project src/Cli -- export
+$env:CROSSAPP_DATA_PATH = "$env:TEMP\crossapp-data"
+dotnet run --no-build --project src/Cli -- export
+explorer "$env:TEMP\crossapp-data"
+Remove-Item Env:CROSSAPP_DATA_PATH
+
+git grep -n "local-dev-key"
+dotnet user-secrets list --project src/Cli
