@@ -377,6 +377,7 @@ CROSSAPP_ENVIRONMENT=Production dotnet run --project src/Cli -- config
 
 `FileOrderStore` пише атомарно: спершу в `orders.json.tmp`, потім `File.Move(..., overwrite: true)`. Ключі camelCase, кирилиця не екранується (`UnsafeRelaxedJsonEscaping`). Пошкоджений файл дає `StorageException` з `JsonException` усередині, а `export` його відновлює.
 
+### Команди демонстрації
 ```
 dotnet run --no-build --project src/Cli -- config
 cd src\Cli
