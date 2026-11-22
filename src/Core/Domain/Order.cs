@@ -9,26 +9,29 @@ public sealed class Order
 
     public string Id { get; }
     public string CustomerId { get; }
+    public DateTimeOffset CreatedAt { get; }
     public OrderStatus Status { get; private set; } = OrderStatus.Draft;
     public IReadOnlyList<OrderLine> Lines => _lines.AsReadOnly();
     public decimal Total => _lines.Sum(l => l.LineTotal);
 
-    private Order(string id, string customerId)
+    private Order(string id, string customerId, DateTimeOffset createdAt)
     {
         Id = id;
         CustomerId = customerId;
+        CreatedAt = createdAt;
     }
 
 
     // Єдиний спосіб створити замовлення: усі перевірки тут.
-    public static Order Create(string id, string customerId)
+    // createdAt необов'язковий: якщо не заданий, береться поточний момент (UTC).
+    public static Order Create(string id, string customerId, DateTimeOffset? createdAt = null)
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("Ідентифікатор замовлення обов'язковий", nameof(id));
         if (string.IsNullOrWhiteSpace(customerId))
             throw new ArgumentException("Ідентифікатор клієнта обов'язковий", nameof(customerId));
 
-        return new Order(id.Trim(), customerId.Trim());
+        return new Order(id.Trim(), customerId.Trim(), createdAt ?? DateTimeOffset.UtcNow);
     }
 
     public void AddLine(string productId, string name, decimal price, int quantity)
@@ -83,11 +86,11 @@ public sealed class Order
 
     // Мапінг у DTO і назад — знадобиться сховищу тижня 5.
     public OrderDto ToDto() =>
-        new(Id, CustomerId, Status, _lines.Select(l => new OrderLineDto(l.ProductId, l.Name, l.Price, l.Quantity)).ToList());
+        new(Id, CustomerId, Status, _lines.Select(l => new OrderLineDto(l.ProductId, l.Name, l.Price, l.Quantity)).ToList(), CreatedAt);
 
     public static Order FromDto(OrderDto dto)
     {
-        Order order = Create(dto.Id, dto.CustomerId);
+        Order order = Create(dto.Id, dto.CustomerId, dto.CreatedAt);
         foreach (OrderLineDto line in dto.Lines)
             order.AddLine(line.ProductId, line.Name, line.Price, line.Quantity);
 

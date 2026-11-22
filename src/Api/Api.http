@@ -1,0 +1,57 @@
+@host = http://localhost:5080
+
+### Health
+GET {{host}}/health
+
+### Список (пагінація і пошук)
+GET {{host}}/api/orders?page=1&pageSize=5&search=CUST-001
+
+### Створити замовлення
+# @name create
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{
+  "customerId": "CUST-001",
+  "lines": [
+    { "productId": "PR-100", "name": "Цемент М400", "price": 120.50, "quantity": 2 }
+  ]
+}
+
+### id з відповіді
+@id = {{create.response.body.$.id}}
+
+### Прочитати за id
+GET {{host}}/api/orders/{{id}}
+
+### Сума замовлення
+GET {{host}}/api/orders/{{id}}/total
+
+### Оновити (PUT)
+PUT {{host}}/api/orders/{{id}}
+Content-Type: application/json
+
+{
+  "customerId": "CUST-002",
+  "lines": [
+    { "productId": "PR-200", "name": "Пісок", "price": 40, "quantity": 5 }
+  ]
+}
+
+### PUT з помилками -> 400
+PUT {{host}}/api/orders/{{id}}
+Content-Type: application/json
+
+{ "customerId": "", "lines": [] }
+
+### Підтвердити
+POST {{host}}/api/orders/{{id}}/confirm
+
+### Підтвердити ще раз -> 409
+POST {{host}}/api/orders/{{id}}/confirm
+
+### Видалити -> 204
+DELETE {{host}}/api/orders/{{id}}
+
+### Після DELETE -> 404
+GET {{host}}/api/orders/{{id}}

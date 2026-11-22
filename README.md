@@ -392,6 +392,57 @@ explorer "$env:TEMP\crossapp-data"
 Remove-Item Env:CROSSAPP_DATA_PATH
 ```
 ```
-git grep -n "local-dev-key"
+
 dotnet user-secrets list --project src/Cli
 ```
+
+## Лабораторна 10. Minimal API для замовлень
+
+Проєкт `src/Api` (net10.0) — HTTP-обгортка над `Core`: CRUD, валідація (FluentValidation), помилки у форматі ProblemDetails, OpenAPI та Scalar (лише в Development).
+
+### Запуск
+
+```powershell
+dotnet run --project src/Api --urls http://localhost:5080
+```
+
+- Scalar UI: http://localhost:5080/scalar/v1
+- OpenAPI: http://localhost:5080/openapi/v1.json
+- Health: http://localhost:5080/health
+
+### Маршрути
+
+| Метод | Шлях | Тіло | Коди |
+|---|---|---|---|
+| GET | `/api/orders?page&pageSize&search` | — | 200, 400 |
+| GET | `/api/orders/{id}` | — | 200, 404 |
+| GET | `/api/orders/{id}/total` | — | 200, 404 |
+| POST | `/api/orders` | `SaveOrderRequest` | 201 (+Location), 400 |
+| PUT | `/api/orders/{id}` | `SaveOrderRequest` | 200, 400, 404, 409 |
+| DELETE | `/api/orders/{id}` | — | 204, 404 |
+| POST | `/api/orders/{id}/confirm` | — | 200, 404, 409 |
+
+### Приклади curl (PowerShell: `curl.exe`)
+
+```powershell
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
+'{"customerId":"CUST-001","lines":[{"productId":"P-1","name":"Мишка","price":100,"quantity":2}]}' | curl.exe -i -X POST http://localhost:5080/api/orders -H "Content-Type: application/json; charset=utf-8" --data-binary "@-"
+curl.exe -i http://localhost:5080/api/orders/ORD-001/total
+curl.exe -i -X DELETE http://localhost:5080/api/orders/<id>
+```
+
+### Помилки
+
+Відповіді 400/404/409/500 мають формат `application/problem+json`. Доменні порушення дають 409, а внутрішні винятки — 500 без деталей.
+
+### DI
+
+`IOrderStore` зареєстровано як Singleton (`LockedOrderStore` над `InMemoryOrderStore`, доступ під `lock`).
+
+### Тести
+
+```powershell
+dotnet test
+```
+
+Core.Tests — 56, Api.Tests — 14.
